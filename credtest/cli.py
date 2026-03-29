@@ -6,6 +6,8 @@ from typing import Optional
 
 import typer
 from rich.console import Console
+from rich.table import Table
+from rich import box
 
 from credtest.config import load_config, validate_config
 from credtest.engine import AttemptResult, run_all
@@ -20,28 +22,18 @@ app = typer.Typer(
 console = Console()
 
 
-@app.command()
-def recon(
-    url: str = typer.Option(..., "--url", "-u", help="Login page URL to analyze"),
-    no_verify: bool = typer.Option(False, "--no-verify", help="Disable SSL verification"),
-    debug: bool = typer.Option(False, "--debug", help="Print raw HTML snippet to help diagnose issues"),
-    cookies: Optional[str] = typer.Option(
-        None, "--cookies",
-        help='Pre-existing cookies to send, e.g. "session=abc123;csrftoken=xyz"',
-    ),
-) -> None:
-    """Analyze a login form using a real browser — works on JS-rendered pages."""
-    console.print(f"[bold cyan]Recon:[/] {url}\n")
-
+def _parse_cookies(cookies_str: Optional[str]) -> dict[str, str]:
     cookie_dict: dict[str, str] = {}
-    if cookies:
-        for pair in cookies.split(";"):
+    if cookies_str:
+        for pair in cookies_str.split(";"):
             if "=" in pair:
                 k, _, v = pair.strip().partition("=")
                 cookie_dict[k.strip()] = v.strip()
+    return cookie_dict
 
-    result = do_recon(url, verify_ssl=not no_verify, debug=debug, cookies=cookie_dict)
 
+def _print_recon_result(url: str, result) -> None:
+    console.rule(f"[bold cyan]{url}[/]")
     if result.page_title:
         console.print(f"  [bold]Page title:[/] {result.page_title}")
     console.print(f"  [bold]Action URL:[/] {result.action}")
@@ -66,6 +58,107 @@ def recon(
 
     for note in result.notes:
         console.print(f"\n  [dim]ℹ {note}[/]")
+    console.print()
+
+
+def _recon_status(result) -> tuple[str, str]:
+    """Return (status_label, style) for summary table."""
+    if result.fields and any(f.field_type == "password" for f in result.fields):
+        return "✅ Ready", "green"
+    if result.fields:
+        return "⚠ Fields (no password)", "yellow"
+    if "Playwright error" in " ".join(result.notes):
+        return "❌ Error", "red"
+    if "WAF" in " ".join(result.notes) or "bot" in " ".join(result.notes).lower():
+        return "🛡 WAF/Bot block", "red"
+    if "JavaScript-rendered" in " ".join(result.notes) or "JS render" in " ".join(result.notes):
+        return "⚙ JS render", "yellow"
+    if "CSRF" in " ".join(result.notes):
+        return "⚠ CSRF detected", "yellow"
+    if result.js_action_hints:
+        return "🔍 JS hints only", "yellow"
+    return "❌ No form", "red"
+
+
+@app.command()
+def recon(
+    url: Optional[str] = typer.Option(None, "--url", "-u", help="Single login page URL to analyze"),
+    url_file: Optional[Path] = typer.Option(None, "--url-file", "-f", help="File with one URL per line"),
+    no_verify: bool = typer.Option(False, "--no-verify", help="Disable SSL verification"),
+    debug: bool = typer.Option(False, "--debug", help="Print raw HTML snippet to help diagnose issues"),
+    cookies: Optional[str] = typer.Option(
+        None, "--cookies",
+        help='Pre-existing cookies to send, e.g. "session=abc123;csrftoken=xyz"',
+    ),
+) -> None:
+    """Analyze login forms using a real browser — works on JS-rendered pages.
+
+    Pass --url for a single target or --url-file for a list of URLs (one per line).
+    """
+    if not url and not url_file:
+        console.print("[red]Provide --url or --url-file.[/]")
+        raise typer.Exit(1)
+
+    # Build URL list
+    urls: list[str] = []
+    if url:
+        urls.append(url)
+    if url_file:
+        if not url_file.exists():
+            console.print(f"[red]File not found: {url_file}[/]")
+            raise typer.Exit(1)
+        for line in url_file.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                urls.append(line)
+
+    cookie_dict = _parse_cookies(cookies)
+    verify_ssl = not no_verify
+
+    if len(urls) == 1:
+        # Single URL — detailed output
+        result = do_recon(urls[0], verify_ssl=verify_ssl, debug=debug, cookies=cookie_dict)
+        _print_recon_result(urls[0], result)
+        return
+
+    # Multiple URLs — detailed output per URL + summary table
+    from credtest.recon import ReconResult
+    results: list[tuple[str, ReconResult]] = []
+
+    console.print(f"[bold]Reconning {len(urls)} URL(s)…[/]\n")
+    for u in urls:
+        console.print(f"[dim]→ {u}[/]")
+        r = do_recon(u, verify_ssl=verify_ssl, debug=debug, cookies=cookie_dict)
+        results.append((u, r))
+        _print_recon_result(u, r)
+
+    # Summary table
+    table = Table(title="Recon Summary", box=box.ROUNDED, header_style="bold magenta")
+    table.add_column("#", justify="right", style="dim")
+    table.add_column("URL", no_wrap=False)
+    table.add_column("Title")
+    table.add_column("Fields", justify="center")
+    table.add_column("CSRF", justify="center")
+    table.add_column("Status", justify="center")
+    table.add_column("Action URL")
+
+    for i, (u, r) in enumerate(results, 1):
+        status, style = _recon_status(r)
+        field_names = ", ".join(f.name for f in r.fields if f.field_type != "hidden") or "—"
+        csrf = "⚠ Yes" if r.csrf_fields else "No"
+        table.add_row(
+            str(i),
+            u,
+            r.page_title or "—",
+            field_names,
+            csrf,
+            f"[{style}]{status}[/]",
+            r.action,
+        )
+
+    console.print(table)
+    console.print(f"\n[dim]✅ Ready = form + password field found  "
+                  f"⚠ = needs attention  ❌ = no form detected[/]")
 
 
 @app.command()
