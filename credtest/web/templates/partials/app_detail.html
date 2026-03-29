@@ -1,0 +1,143 @@
+<div class="detail-inner">
+
+  <!-- Two-column layout: preview left, config right -->
+  <div class="detail-columns">
+
+    <!-- Login page preview -->
+    <div class="preview-panel">
+      <div class="panel-title">Login Page Preview</div>
+      <iframe
+        src="/api/screenshot/{{ target.id }}"
+        sandbox=""
+        class="screenshot-iframe"
+        loading="lazy"
+        title="Login page preview for {{ target.name }}"
+      ></iframe>
+    </div>
+
+    <!-- Test config -->
+    <div class="config-panel">
+      <div class="panel-title">Test Configuration</div>
+
+      {% if recon %}
+      <div class="recon-info">
+        <div class="info-row"><span class="label">Endpoint</span><span class="val">{{ recon.endpoint_url }}</span></div>
+        <div class="info-row"><span class="label">Fields</span>
+          <span class="val">
+            {% if recon.fields %}
+              {% for f in recon.fields %}{{ f.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+            {% else %}—{% endif %}
+          </span>
+        </div>
+        <div class="info-row">
+          <span class="label">CSRF</span><span class="val {% if recon.csrf_detected %}warn{% endif %}">{% if recon.csrf_detected %}⚠ {{ recon.csrf_field_name }}{% else %}✗{% endif %}</span>
+          <span class="label">CAPTCHA</span><span class="val {% if recon.captcha_detected %}warn{% endif %}">{% if recon.captcha_detected %}⚠ {{ recon.captcha_type or 'detected' }}{% else %}✗{% endif %}</span>
+        </div>
+      </div>
+      {% else %}
+      <p class="muted">No recon data yet. Click <strong>⟳ Recon</strong> to analyze this login page.</p>
+      {% endif %}
+
+      <div class="test-config" data-app-id="{{ target.id }}">
+        <label>Attack Mode</label>
+        <select id="mode-{{ target.id }}" class="attack-mode-select" onchange="updateWordlistUI({{ target.id }})">
+          <option value="cluster_bomb" selected>Cluster Bomb — every combo</option>
+          <option value="pitchfork">Pitchfork — parallel lists</option>
+          <option value="battering_ram">Battering Ram — same word all fields</option>
+          <option value="sniper">Sniper — one position at a time</option>
+        </select>
+
+        <div class="wordlist-section" id="wl-multi-{{ target.id }}">
+          <label>Username list</label>
+          <div class="wl-row">
+            <input type="text" id="u-path-{{ target.id }}" placeholder="data/uploads/users.txt" class="wl-path">
+            <label class="btn btn-sm btn-secondary upload-wl-btn">
+              Browse
+              <input type="file" accept=".txt,.csv" onchange="uploadWordlist(this, 'u-path-{{ target.id }}')" hidden>
+            </label>
+            <button class="btn btn-sm btn-ghost" onclick="useDefault('u-path-{{ target.id }}', 'usernames')">Built-in</button>
+          </div>
+          <label>Password list</label>
+          <div class="wl-row">
+            <input type="text" id="p-path-{{ target.id }}" placeholder="data/uploads/passwords.txt" class="wl-path">
+            <label class="btn btn-sm btn-secondary upload-wl-btn">
+              Browse
+              <input type="file" accept=".txt,.csv" onchange="uploadWordlist(this, 'p-path-{{ target.id }}')" hidden>
+            </label>
+            <button class="btn btn-sm btn-ghost" onclick="useDefault('p-path-{{ target.id }}', 'passwords')">Built-in</button>
+          </div>
+        </div>
+
+        <div class="wordlist-section hidden" id="wl-single-{{ target.id }}">
+          <label>Wordlist</label>
+          <div class="wl-row">
+            <input type="text" id="s-path-{{ target.id }}" placeholder="data/uploads/combined.txt" class="wl-path">
+            <label class="btn btn-sm btn-secondary upload-wl-btn">
+              Browse
+              <input type="file" accept=".txt,.csv" onchange="uploadWordlist(this, 's-path-{{ target.id }}')" hidden>
+            </label>
+            <button class="btn btn-sm btn-ghost" onclick="useDefault('s-path-{{ target.id }}', 'passwords')">Built-in</button>
+          </div>
+        </div>
+
+        <div class="combo-preview" id="combo-preview-{{ target.id }}">Combinations: —</div>
+
+        <div class="action-row">
+          <button class="btn btn-primary" id="start-btn-{{ target.id }}" onclick="startTest({{ target.id }})">▶ Start Test</button>
+          <button class="btn btn-danger" id="abort-btn-{{ target.id }}" onclick="abortTest({{ target.id }})" disabled>■ Abort</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="progress-section" id="progress-{{ target.id }}" style="display:none">
+    <div class="progress-label">
+      <span id="progress-text-{{ target.id }}">0 / 0</span>
+      <span id="success-text-{{ target.id }}" class="success-count">0 found</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progress-fill-{{ target.id }}" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- Results table -->
+  <div class="results-section">
+    <div class="results-header">
+      <span class="panel-title">Results</span>
+      <div class="results-actions">
+        <button class="btn btn-sm btn-secondary" onclick="exportCSV({{ target.id }})">⬇ CSV</button>
+        <button class="btn btn-sm btn-secondary" onclick="exportJSONL({{ target.id }})">⬇ JSONL</button>
+      </div>
+    </div>
+
+    {% if summary.total > 0 %}
+    <div class="summary-pills">
+      <span class="pill pill-total">{{ summary.total }} tested</span>
+      <span class="pill pill-success">{{ summary.success }} success</span>
+      {% if summary.rate_limited %}<span class="pill pill-warn">{{ summary.rate_limited }} rate-limited</span>{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="results-table-wrap">
+      <table class="results-table" id="results-table-{{ target.id }}">
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Password</th>
+            <th>Status</th>
+            <th>Score</th>
+            <th>Signals</th>
+          </tr>
+        </thead>
+        <tbody id="results-body-{{ target.id }}">
+          <!-- Live results appended here by websocket.js -->
+        </tbody>
+      </table>
+      {% if summary.total == 0 %}
+      <p class="muted table-empty">No results yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>

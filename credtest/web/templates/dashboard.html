@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}CredTest Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+
+  <!-- Summary bar -->
+  <div class="summary-bar">
+    <div class="stat-card" onclick="filterCards('')">
+      <div class="stat-num" id="count-total">{{ counts.total or 0 }}</div>
+      <div class="stat-label">Total</div>
+    </div>
+    <div class="stat-card clickable" onclick="filterCards('pending')">
+      <div class="stat-num" id="count-pending">{{ counts.pending or 0 }}</div>
+      <div class="stat-label">Pending</div>
+    </div>
+    <div class="stat-card clickable" onclick="filterCards('ready')">
+      <div class="stat-num ready" id="count-ready">{{ counts.ready or 0 }}</div>
+      <div class="stat-label">Ready</div>
+    </div>
+    <div class="stat-card clickable" onclick="filterCards('testing')">
+      <div class="stat-num testing" id="count-testing">{{ counts.testing or 0 }}</div>
+      <div class="stat-label">Testing</div>
+    </div>
+    <div class="stat-card clickable" onclick="filterCards('held')">
+      <div class="stat-num held" id="count-held">{{ counts.held or 0 }}</div>
+      <div class="stat-label">Held</div>
+    </div>
+    <div class="stat-card clickable" onclick="filterCards('done')">
+      <div class="stat-num done" id="count-done">{{ counts.done or 0 }}</div>
+      <div class="stat-label">Done</div>
+    </div>
+    <div class="stat-card clickable" onclick="filterCards('error')">
+      <div class="stat-num error" id="count-error">{{ counts.error or 0 }}</div>
+      <div class="stat-label">Error</div>
+    </div>
+  </div>
+
+  <!-- Filter + search -->
+  <div class="toolbar">
+    <input type="text" id="search-input" placeholder="Search apps…" oninput="searchCards(this.value)">
+  </div>
+
+  {% if not targets %}
+  <div class="empty-state">
+    <p>No targets loaded yet.</p>
+    <p>Upload a <code>credtest.yaml</code> config file using the button above.</p>
+  </div>
+  {% endif %}
+
+  <!-- App cards -->
+  <div class="cards-list" id="cards-list">
+    {% for target in targets %}
+    <div class="app-card" id="card-{{ target.id }}" data-status="{{ target.status }}" data-name="{{ target.name }}">
+      <div class="app-card-header" data-app-id="{{ target.id }}" onclick="toggleCard({{ target.id }})">
+        <div class="card-left">
+          <span class="status-dot status-{{ target.status }}"></span>
+          <span class="app-name">{{ target.name }}</span>
+          <span class="app-url">{{ target.url }}</span>
+        </div>
+        <div class="card-right">
+          {% if target.hold_reason %}
+          <span class="hold-tag">{{ target.hold_reason }}</span>
+          {% endif %}
+          <span class="badge badge-{{ target.status }}" id="badge-{{ target.id }}">{{ target.status.upper() }}</span>
+          <div class="card-actions" onclick="event.stopPropagation()">
+            <button class="btn btn-sm btn-secondary" onclick="reconOne({{ target.id }})">⟳ Recon</button>
+            {% if target.status == 'held' %}
+            <button class="btn btn-sm btn-warn" onclick="releaseHold({{ target.id }})">Release Hold</button>
+            {% endif %}
+          </div>
+          <span class="chevron" id="chevron-{{ target.id }}">▼</span>
+        </div>
+      </div>
+      <div class="app-detail" id="detail-{{ target.id }}"></div>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

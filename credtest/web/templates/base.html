@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CredTest{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="logo">🔐 CredTest</span>
+      <span class="tagline">Authorized Security Audits Only</span>
+    </div>
+    <div class="topbar-right">
+      <label class="btn btn-secondary upload-btn">
+        ▲ Upload Config
+        <input type="file" id="config-upload-input" accept=".yaml,.yml" hidden>
+      </label>
+      <button class="btn btn-secondary" onclick="reconAll()">⟳ Recon All</button>
+      <button class="btn btn-primary" onclick="testAll()">▶▶ Test All</button>
+    </div>
+  </header>
+
+  <div id="toast-container"></div>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="/static/js/websocket.js"></script>
+  <script src="/static/js/dashboard.js"></script>
+  <script src="/static/js/test.js"></script>
+  <script src="/static/js/export.js"></script>
+</body>
+</html>

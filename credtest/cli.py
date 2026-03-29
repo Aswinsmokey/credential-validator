@@ -255,3 +255,24 @@ def run(
         write_jsonl(results, output / "results.jsonl")
         write_csv(results, output / "results.csv")
         console.print(f"\n[dim]Results written to {output}/[/]")
+
+
+@app.command()
+def serve(
+    port: int = typer.Option(8080, "--port", "-p", help="Port to listen on"),
+    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind (use 0.0.0.0 for network access)"),
+) -> None:
+    """Launch the CredTest web dashboard."""
+    import uvicorn
+    if host == "0.0.0.0":
+        console.print("[yellow]⚠  Binding to 0.0.0.0 — dashboard accessible on the network.[/]")
+        console.print("[yellow]   For internal/authorized use only.[/]\n")
+    console.print(f"[bold green]CredTest Dashboard[/] → http://{host}:{port}\n")
+    uvicorn.run(
+        "credtest.web.app:create_app",
+        factory=True,
+        host=host,
+        port=port,
+        workers=1,
+        log_level="info",
+    )
