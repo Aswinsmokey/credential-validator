@@ -24,10 +24,11 @@ console = Console()
 def recon(
     url: str = typer.Option(..., "--url", "-u", help="Login page URL to analyze"),
     no_verify: bool = typer.Option(False, "--no-verify", help="Disable SSL verification"),
+    debug: bool = typer.Option(False, "--debug", help="Print raw HTML snippet to help diagnose issues"),
 ) -> None:
     """Analyze a login form — no credentials sent."""
     console.print(f"[bold cyan]Recon:[/] {url}\n")
-    result = do_recon(url, verify_ssl=not no_verify)
+    result = do_recon(url, verify_ssl=not no_verify, debug=debug)
 
     console.print(f"  [bold]Action URL:[/] {result.action}")
     console.print(f"  [bold]Method:[/]     {result.method}")
