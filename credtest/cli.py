@@ -40,13 +40,23 @@ def _print_recon_result(url: str, result) -> None:
     console.print(f"  [bold]Method:[/]     {result.method}")
 
     if result.fields:
-        console.print(f"  [bold]Fields:[/]")
+        console.print(f"  [bold]Visible fields:[/]")
         for f in result.fields:
             req = " [red](required)[/]" if f.required else ""
-            val = f" = {f.value!r}" if f.value else ""
-            console.print(f"    • [cyan]{f.name}[/] ({f.field_type}){val}{req}")
+            console.print(f"    • [cyan]{f.name}[/] ({f.field_type}){req}")
     else:
         console.print("  [bold]Fields:[/] [dim](none found)[/]")
+
+    if result.mapping:
+        m = result.mapping
+        console.print(f"\n  [bold green]Field mapping:[/]")
+        console.print(f"    [green]{m.username_field}[/] → §username§")
+        if m.password_field:
+            console.print(f"    [green]{m.password_field}[/] → §password§")
+        for name in m.extra_fields:
+            console.print(f"    [dim]{name}[/] → (included as-is)")
+        for name in m.skipped_fields:
+            console.print(f"    [dim]{name}[/] → [dim](excluded)[/]")
 
     if result.csrf_fields:
         console.print(f"\n  [yellow]⚠ CSRF fields:[/] {', '.join(result.csrf_fields)}")
@@ -57,7 +67,10 @@ def _print_recon_result(url: str, result) -> None:
             console.print(f"    • [cyan]{hint}[/]")
 
     for note in result.notes:
-        console.print(f"\n  [dim]ℹ {note}[/]")
+        if note.startswith("Suggested body_template"):
+            console.print(f"\n  [bold]body_template:[/] [green]{note.split(': ', 1)[1]}[/]")
+        else:
+            console.print(f"\n  [dim]ℹ {note}[/]")
     console.print()
 
 
@@ -116,19 +129,19 @@ def recon(
     verify_ssl = not no_verify
 
     if len(urls) == 1:
-        # Single URL — detailed output
-        result = do_recon(urls[0], verify_ssl=verify_ssl, debug=debug, cookies=cookie_dict)
+        # Single URL — detailed output + interactive field mapping
+        result = do_recon(urls[0], verify_ssl=verify_ssl, debug=debug, cookies=cookie_dict, interactive=True)
         _print_recon_result(urls[0], result)
         return
 
-    # Multiple URLs — detailed output per URL + summary table
+    # Multiple URLs — non-interactive (no prompts), detailed output per URL + summary table
     from credtest.recon import ReconResult
     results: list[tuple[str, ReconResult]] = []
 
     console.print(f"[bold]Reconning {len(urls)} URL(s)…[/]\n")
     for u in urls:
         console.print(f"[dim]→ {u}[/]")
-        r = do_recon(u, verify_ssl=verify_ssl, debug=debug, cookies=cookie_dict)
+        r = do_recon(u, verify_ssl=verify_ssl, debug=debug, cookies=cookie_dict, interactive=False)
         results.append((u, r))
         _print_recon_result(u, r)
 
@@ -144,7 +157,10 @@ def recon(
 
     for i, (u, r) in enumerate(results, 1):
         status, style = _recon_status(r)
-        field_names = ", ".join(f.name for f in r.fields if f.field_type != "hidden") or "—"
+        if r.mapping:
+            field_names = f"{r.mapping.username_field} / {r.mapping.password_field}"
+        else:
+            field_names = ", ".join(f.name for f in r.fields) or "—"
         csrf = "⚠ Yes" if r.csrf_fields else "No"
         table.add_row(
             str(i),
