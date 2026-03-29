@@ -25,21 +25,44 @@ def recon(
     url: str = typer.Option(..., "--url", "-u", help="Login page URL to analyze"),
     no_verify: bool = typer.Option(False, "--no-verify", help="Disable SSL verification"),
     debug: bool = typer.Option(False, "--debug", help="Print raw HTML snippet to help diagnose issues"),
+    cookies: Optional[str] = typer.Option(
+        None, "--cookies",
+        help='Pre-existing cookies to send, e.g. "session=abc123;csrftoken=xyz"',
+    ),
 ) -> None:
-    """Analyze a login form — no credentials sent."""
+    """Analyze a login form using a real browser — works on JS-rendered pages."""
     console.print(f"[bold cyan]Recon:[/] {url}\n")
-    result = do_recon(url, verify_ssl=not no_verify, debug=debug)
 
+    cookie_dict: dict[str, str] = {}
+    if cookies:
+        for pair in cookies.split(";"):
+            if "=" in pair:
+                k, _, v = pair.strip().partition("=")
+                cookie_dict[k.strip()] = v.strip()
+
+    result = do_recon(url, verify_ssl=not no_verify, debug=debug, cookies=cookie_dict)
+
+    if result.page_title:
+        console.print(f"  [bold]Page title:[/] {result.page_title}")
     console.print(f"  [bold]Action URL:[/] {result.action}")
     console.print(f"  [bold]Method:[/]     {result.method}")
-    console.print(f"  [bold]Fields:[/]")
-    for f in result.fields:
-        req = " [red](required)[/]" if f.required else ""
-        val = f" = {f.value!r}" if f.value else ""
-        console.print(f"    • [cyan]{f.name}[/] ({f.field_type}){val}{req}")
+
+    if result.fields:
+        console.print(f"  [bold]Fields:[/]")
+        for f in result.fields:
+            req = " [red](required)[/]" if f.required else ""
+            val = f" = {f.value!r}" if f.value else ""
+            console.print(f"    • [cyan]{f.name}[/] ({f.field_type}){val}{req}")
+    else:
+        console.print("  [bold]Fields:[/] [dim](none found)[/]")
 
     if result.csrf_fields:
         console.print(f"\n  [yellow]⚠ CSRF fields:[/] {', '.join(result.csrf_fields)}")
+
+    if result.js_action_hints:
+        console.print(f"\n  [bold]JS endpoint hints:[/]")
+        for hint in result.js_action_hints:
+            console.print(f"    • [cyan]{hint}[/]")
 
     for note in result.notes:
         console.print(f"\n  [dim]ℹ {note}[/]")

@@ -27,12 +27,16 @@ CredTest is a fast, lightweight CLI that automates credential testing across web
 git clone https://github.com/Aswinsmokey/credential-validator.git
 cd credential-validator
 pip install -e .
+
+# Install Playwright browser (one-time — required for recon)
+playwright install chromium
 ```
 
 Or install dependencies directly:
 
 ```bash
-pip install httpx[http2] beautifulsoup4 lxml mechanicalsoup "typer[all]" rich pyyaml requests
+pip install httpx[http2] beautifulsoup4 lxml mechanicalsoup "typer[all]" rich pyyaml requests playwright
+playwright install chromium
 ```
 
 ---
@@ -41,8 +45,16 @@ pip install httpx[http2] beautifulsoup4 lxml mechanicalsoup "typer[all]" rich py
 
 ### 1. Recon — analyze a login form first (no credentials sent)
 
+Recon uses a real headless Chromium browser (Playwright) so it works on React, Angular, Vue, Next.js, and any JS-rendered login page.
+
 ```bash
 python -m credtest recon --url https://target.internal/login
+
+# Pass a session cookie if the login page is behind auth
+python -m credtest recon --url https://target.internal/login --cookies "session=abc123"
+
+# Disable SSL verification for internal apps with self-signed certs
+python -m credtest recon --url https://target.internal/login --no-verify
 ```
 
 Example output:
