@@ -127,6 +127,74 @@ function filterCards(status) {
   });
 }
 
+// Paste URLs modal
+function openPasteURLs() {
+  document.getElementById('paste-urls-modal').style.display = 'flex';
+  document.getElementById('paste-urls-input').focus();
+}
+
+function closePasteURLs() {
+  document.getElementById('paste-urls-modal').style.display = 'none';
+}
+
+async function submitPasteURLs() {
+  const raw = document.getElementById('paste-urls-input').value;
+  const urls = raw.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
+  if (!urls.length) { showToast('No valid URLs found', 'error'); return; }
+
+  try {
+    const resp = await fetch('/api/targets/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { showToast(`Error: ${JSON.stringify(data.detail)}`, 'error'); return; }
+    showToast(`✓ Imported ${data.count} target(s) — recon running…`, 'success');
+    closePasteURLs();
+    setTimeout(() => location.reload(), 800);
+  } catch (e) {
+    showToast(`Failed: ${e.message}`, 'error');
+  }
+}
+
+// Add Target modal
+function openAddTarget() {
+  document.getElementById('add-target-modal').style.display = 'flex';
+  document.getElementById('at-name').focus();
+}
+
+function closeAddTarget() {
+  document.getElementById('add-target-modal').style.display = 'none';
+}
+
+async function submitAddTarget() {
+  const name = document.getElementById('at-name').value.trim();
+  const url  = document.getElementById('at-url').value.trim();
+  const ufield = document.getElementById('at-ufield').value.trim() || 'username';
+  const pfield = document.getElementById('at-pfield').value.trim() || 'password';
+  const ct   = document.getElementById('at-ct').value;
+  const mode = document.getElementById('at-mode').value;
+
+  if (!name || !url) { showToast('Name and URL are required', 'error'); return; }
+
+  try {
+    const resp = await fetch('/api/targets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, url, content_type: ct, attack_mode: mode,
+                             username_field: ufield, password_field: pfield }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { showToast(`Error: ${JSON.stringify(data.detail)}`, 'error'); return; }
+    showToast(`✓ Target "${data.name}" added`, 'success');
+    closeAddTarget();
+    setTimeout(() => location.reload(), 600);
+  } catch (e) {
+    showToast(`Failed: ${e.message}`, 'error');
+  }
+}
+
 // Search cards by name
 function searchCards(query) {
   const q = query.toLowerCase();

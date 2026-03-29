@@ -268,6 +268,23 @@ code { font-family: monospace; background: var(--bg3); padding: 1px 4px; border-
 
 .muted { color: var(--muted); }
 
+/* ── Modal ───────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.modal-box {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 28px; width: 480px; max-width: 95vw;
+}
+.form-grid { display: flex; flex-direction: column; gap: 12px; }
+.form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.form-input {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); padding: 7px 10px; font-size: 14px; font-family: inherit;
+}
+.form-input:focus { outline: none; border-color: var(--accent); }
+
 /* ── Toast notifications ─────────────────────────────────────────── */
 #toast-container {
   position: fixed;

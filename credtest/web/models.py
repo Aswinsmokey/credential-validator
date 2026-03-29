@@ -13,6 +13,16 @@ class TestStartRequest(BaseModel):
     use_default_passwords: bool = False
 
 
+class AddTargetRequest(BaseModel):
+    name: str
+    url: str
+    method: str = "POST"
+    content_type: str = "form"
+    username_field: str = "username"
+    password_field: str = "password"
+    attack_mode: str = "cluster_bomb"
+
+
 class HoldReleaseResponse(BaseModel):
     app_id: int
     status: str

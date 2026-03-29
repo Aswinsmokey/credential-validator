@@ -11,7 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from credtest.web import db as database
-from credtest.web.models import TestStartRequest
+from credtest.web.models import TestStartRequest, AddTargetRequest
 from credtest.web.routes.ws import ws_manager
 from credtest.web import tasks as bg_tasks
 
@@ -80,6 +80,83 @@ async def upload_config(file: UploadFile = File(...)):
         app_ids.append({"id": row_id, "name": target.name})
 
     return {"targets": app_ids, "count": len(app_ids)}
+
+
+# ---------------------------------------------------------------------------
+# Add single target
+# ---------------------------------------------------------------------------
+
+@api_router.post("/targets")
+async def add_target(req: AddTargetRequest):
+    import time as _time
+    from credtest.web import db as _db
+    db = await _db.get_db()
+    body_template = {req.username_field: "§username§", req.password_field: "§password§"}
+    import json as _json
+    now = _time.time()
+    async with db.execute(
+        """
+        INSERT INTO targets (name, url, method, content_type, body_template, attack_mode, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(name) DO UPDATE SET
+            url=excluded.url, method=excluded.method, content_type=excluded.content_type,
+            body_template=excluded.body_template, attack_mode=excluded.attack_mode,
+            updated_at=excluded.updated_at
+        """,
+        (req.name, req.url, req.method, req.content_type,
+         _json.dumps(body_template), req.attack_mode, now),
+    ) as cur:
+        row_id = cur.lastrowid
+    await db.commit()
+    if not row_id:
+        async with db.execute("SELECT id FROM targets WHERE name=?", (req.name,)) as cur:
+            row = await cur.fetchone()
+            row_id = row["id"]
+    return {"id": row_id, "name": req.name}
+
+
+# ---------------------------------------------------------------------------
+# Bulk URL import
+# ---------------------------------------------------------------------------
+
+from pydantic import BaseModel as _BM
+class BulkURLRequest(_BM):
+    urls: list[str]
+
+@api_router.post("/targets/bulk")
+async def add_targets_bulk(req: BulkURLRequest, background_tasks: BackgroundTasks):
+    import time as _time, json as _json
+    from urllib.parse import urlparse
+    db = await database.get_db()
+    added = []
+    for url in req.urls:
+        url = url.strip()
+        if not url or not url.startswith("http"):
+            continue
+        parsed = urlparse(url)
+        # Auto-name: hostname without www + path slug
+        host = parsed.netloc.replace("www.", "")
+        slug = parsed.path.strip("/").replace("/", "-") or "login"
+        name = f"{host}-{slug}"
+        body_template = _json.dumps({"username": "§username§", "password": "§password§"})
+        now = _time.time()
+        async with db.execute(
+            """
+            INSERT INTO targets (name, url, method, content_type, body_template, attack_mode, updated_at)
+            VALUES (?, ?, 'POST', 'form', ?, 'cluster_bomb', ?)
+            ON CONFLICT(name) DO UPDATE SET url=excluded.url, updated_at=excluded.updated_at
+            """,
+            (name, url, body_template, now),
+        ) as cur:
+            row_id = cur.lastrowid
+        await db.commit()
+        if not row_id:
+            async with db.execute("SELECT id FROM targets WHERE name=?", (name,)) as cur:
+                row = await cur.fetchone()
+                row_id = row["id"]
+        added.append({"id": row_id, "name": name, "url": url})
+        background_tasks.add_task(bg_tasks.run_recon, row_id)
+    return {"added": added, "count": len(added)}
 
 
 # ---------------------------------------------------------------------------
