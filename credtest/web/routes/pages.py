@@ -17,11 +17,14 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 async def dashboard(request: Request):
     targets = await database.get_all_targets()
     counts = await database.get_dashboard_counts()
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "targets": [dict(t) for t in targets],
-        "counts": counts,
-    })
+    return templates.TemplateResponse(
+        request,
+        "dashboard.html",
+        {
+            "targets": [dict(t) for t in targets],
+            "counts": counts,
+        },
+    )
 
 
 @pages_router.get("/app/{app_id}", response_class=HTMLResponse)
@@ -42,10 +45,13 @@ async def app_detail(request: Request, app_id: int):
 
     run_data = dict(run) if run else None
 
-    return templates.TemplateResponse("partials/app_detail.html", {
-        "request": request,
-        "target": dict(target),
-        "recon": recon_data,
-        "run": run_data,
-        "summary": summary,
-    })
+    return templates.TemplateResponse(
+        request,
+        "partials/app_detail.html",
+        {
+            "target": dict(target),
+            "recon": recon_data,
+            "run": run_data,
+            "summary": summary,
+        },
+    )
