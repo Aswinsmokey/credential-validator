@@ -1,0 +1,51 @@
+global:
+  concurrency: 50
+  per_target_concurrency: 10
+  timeout_seconds: 10
+  retry_delay_seconds: 60
+  max_retries: 3
+  verify_ssl: true
+  scope:
+    - target.internal
+    - app.corp.local
+
+targets:
+  # Example 1: cluster_bomb (every username x every password)
+  - name: "internal-app"
+    url: "https://app.target.internal/login"
+    method: POST
+    content_type: form
+    body_template:
+      username: "§username§"
+      password: "§password§"
+    attack_mode: cluster_bomb
+    wordlists:
+      username: "./credtest/wordlists/top_usernames.txt"
+      password: "./credtest/wordlists/top_passwords.txt"
+
+  # Example 2: pitchfork (pair username[i] with password[i])
+  - name: "json-api"
+    url: "https://api.target.internal/auth/login"
+    method: POST
+    content_type: json
+    body_template:
+      email: "§username§"
+      password: "§password§"
+    attack_mode: pitchfork
+    wordlists:
+      username: "./wordlists/known_users.txt"
+      password: "./wordlists/known_passes.txt"
+
+  # Example 3: sniper (one wordlist, test one field at a time)
+  - name: "legacy-portal"
+    url: "https://portal.target.internal/auth"
+    method: POST
+    content_type: form
+    body_template:
+      user: "§word§"
+      pass: "§word§"
+    attack_mode: sniper
+    wordlist: "./credtest/wordlists/top_passwords.txt"
+    defaults:
+      user: "admin"
+      pass: "admin"
